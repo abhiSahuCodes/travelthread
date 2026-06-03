@@ -9,7 +9,7 @@ import { initDatabase } from './src/db/index';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MapLibreGL from '@maplibre/maplibre-react-native';
 
-// OpenFreeMap does not require a Mapbox token
+// OpenFreeMap does not require a Mapbox/MapLibre token
 MapLibreGL.setAccessToken(null);
 
 const queryClient = new QueryClient();

@@ -1,11 +1,10 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
+  Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
-  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapLibreGL from '@maplibre/maplibre-react-native';
@@ -16,24 +15,19 @@ const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const COLORS = {
   primary: '#630ed4',
   primaryAlt: '#7C3AED',
-  background: '#fcf8ff',
   surface: '#ffffff',
-  surfaceContainer: '#efecff',
   surfaceContainerLow: '#f5f2ff',
   surfaceContainerHigh: '#e8e5ff',
   surfaceContainerLowest: '#ffffff',
   onSurface: '#1a1a2e',
-  onSurfaceVariant: '#4a4455',
   secondary: '#505f76',
   outline: '#7b7487',
   outlineVariant: '#ccc3d8',
-  mapBg: '#F5F0E8',
   white: '#ffffff',
 };
 
 const SNAP_POINTS = ['35%', '60%'];
 
-// ─── Mock places data ─────────────────────────────────────────────────────────
 const MOCK_PLACES = [
   {
     id: 'p1',
@@ -80,45 +74,35 @@ export const TripDetailMapScreen = ({ route, navigation }) => {
   const cameraRef = useRef(null);
   const bottomSheetRef = useRef(null);
 
-  // Calculate map center from places
-  const centerCoordinate = trip
-    ? [trip.longitude ?? 135.7, trip.latitude ?? 35.0]
-    : [135.7, 35.0];
+  const centerCoordinate = [trip?.longitude ?? 135.7, trip?.latitude ?? 35.0];
 
   const handlePlaceCardPress = useCallback((place) => {
     setSelectedPlaceId(place.id);
     cameraRef.current?.flyTo([place.longitude, place.latitude], 600);
   }, []);
 
-  const handlePlaceDetailPress = useCallback((place) => {
-    navigation.navigate('PlaceDetail', { place, trip });
-  }, [navigation, trip]);
+  const handlePlaceDetailPress = useCallback(
+    (place) => navigation.navigate('PlaceDetail', { place, trip }),
+    [navigation, trip]
+  );
 
-  // ─── Map pins ─────────────────────────────────────────────────────────────
-  const renderPins = () =>
-    MOCK_PLACES.map((place, idx) => (
-      <MapLibreGL.PointAnnotation
-        key={place.id}
-        id={`trip-pin-${place.id}`}
-        coordinate={[place.longitude, place.latitude]}
-        onSelected={() => handlePlaceCardPress(place)}
-      >
-        <Pressable onPress={() => handlePlaceCardPress(place)}>
-          <View
-            style={[
-              styles.pinCircle,
-              place.id === selectedPlaceId && styles.pinCircleActive,
-            ]}
-          >
-            <Text style={styles.pinNumber}>{idx + 1}</Text>
-          </View>
-        </Pressable>
-      </MapLibreGL.PointAnnotation>
-    ));
+  // Build GeoJSON line for dashed route
+  const routeGeoJSON = {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: MOCK_PLACES.map((p) => [p.longitude, p.latitude]),
+        },
+      },
+    ],
+  };
 
   return (
     <View style={styles.root}>
-      {/* ── Map (60% height) ── */}
+      {/* ── Map ── */}
       <MapLibreGL.MapView
         style={styles.map}
         styleURL={MAP_STYLE_URL}
@@ -129,14 +113,50 @@ export const TripDetailMapScreen = ({ route, navigation }) => {
       >
         <MapLibreGL.Camera
           ref={cameraRef}
-          zoomLevel={9}
+          zoomLevel={8}
           centerCoordinate={centerCoordinate}
           animationDuration={0}
         />
-        {isMapReady && renderPins()}
+
+        {isMapReady && (
+          <>
+            {/* Dashed route path */}
+            <MapLibreGL.ShapeSource id="route" shape={routeGeoJSON}>
+              <MapLibreGL.LineLayer
+                id="routeLine"
+                style={{
+                  lineColor: COLORS.primaryAlt,
+                  lineWidth: 2,
+                  lineDasharray: [2, 2],
+                }}
+              />
+            </MapLibreGL.ShapeSource>
+
+            {/* Place pins */}
+            {MOCK_PLACES.map((place, idx) => (
+              <MapLibreGL.PointAnnotation
+                key={place.id}
+                id={`place-pin-${place.id}`}
+                coordinate={[place.longitude, place.latitude]}
+                onSelected={() => handlePlaceCardPress(place)}
+              >
+                <Pressable onPress={() => handlePlaceCardPress(place)}>
+                  <View
+                    style={[
+                      styles.pinCircle,
+                      place.id === selectedPlaceId && styles.pinCircleActive,
+                    ]}
+                  >
+                    <Text style={styles.pinNumber}>{idx + 1}</Text>
+                  </View>
+                </Pressable>
+              </MapLibreGL.PointAnnotation>
+            ))}
+          </>
+        )}
       </MapLibreGL.MapView>
 
-      {/* ── Top app bar ── */}
+      {/* ── App bar ── */}
       <View style={[styles.appBar, { paddingTop: insets.top + 4 }]}>
         <View style={styles.appBarLeft}>
           <Pressable
@@ -146,7 +166,7 @@ export const TripDetailMapScreen = ({ route, navigation }) => {
             <Text style={styles.backIcon}>←</Text>
           </Pressable>
           <Text style={styles.appBarTitle} numberOfLines={1}>
-            {trip?.name ?? 'Trip'} — {trip?.year ?? ''}
+            {trip?.name ?? 'Trip'}{trip?.year ? ` — ${trip.year}` : ''}
           </Text>
         </View>
         <Pressable style={styles.moreBtn}>
@@ -162,25 +182,21 @@ export const TripDetailMapScreen = ({ route, navigation }) => {
         handleIndicatorStyle={styles.sheetHandle}
         backgroundStyle={styles.sheetBackground}
       >
-        <View style={styles.sheetContent}>
-          {/* Stats chips */}
-          <View style={styles.statsRow}>
-            <View style={styles.statChip}>
-              <Text style={styles.statChipIcon}>📍</Text>
-              <Text style={styles.statChipText}>
-                {MOCK_PLACES.length} places visited
-              </Text>
-            </View>
-            <View style={styles.statChip}>
-              <Text style={styles.statChipIcon}>💰</Text>
-              <Text style={styles.statChipText}>
-                ¥{MOCK_PLACES.reduce((s, p) => s + p.spend, 0).toLocaleString()} total
-              </Text>
-            </View>
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          <View style={styles.statChip}>
+            <Text style={styles.statChipIcon}>📍</Text>
+            <Text style={styles.statChipText}>{MOCK_PLACES.length} places visited</Text>
+          </View>
+          <View style={styles.statChip}>
+            <Text style={styles.statChipIcon}>💰</Text>
+            <Text style={styles.statChipText}>
+              ¥{MOCK_PLACES.reduce((s, p) => s + p.spend, 0).toLocaleString()} total
+            </Text>
           </View>
         </View>
 
-        {/* Place cards horizontal scroll */}
+        {/* Place cards */}
         <BottomSheetScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -203,12 +219,8 @@ export const TripDetailMapScreen = ({ route, navigation }) => {
                 resizeMode="cover"
               />
               <View style={styles.placeCardBody}>
-                <Text style={styles.placeCardName} numberOfLines={1}>
-                  {place.name}
-                </Text>
-                <Text style={styles.placeCardNote} numberOfLines={1}>
-                  {place.note}
-                </Text>
+                <Text style={styles.placeCardName} numberOfLines={1}>{place.name}</Text>
+                <Text style={styles.placeCardNote} numberOfLines={1}>{place.note}</Text>
                 <Text
                   style={[
                     styles.placeCardTime,
@@ -222,7 +234,7 @@ export const TripDetailMapScreen = ({ route, navigation }) => {
           ))}
         </BottomSheetScrollView>
 
-        {/* Detail list peek */}
+        {/* Detail list */}
         <View style={styles.detailList}>
           {MOCK_PLACES.map((place, idx) => (
             <Pressable
@@ -238,9 +250,7 @@ export const TripDetailMapScreen = ({ route, navigation }) => {
               </View>
               <View style={styles.detailRowBody}>
                 <Text style={styles.detailRowTitle}>{place.name}</Text>
-                <Text style={styles.detailRowSub} numberOfLines={1}>
-                  {place.note}
-                </Text>
+                <Text style={styles.detailRowSub} numberOfLines={1}>{place.note}</Text>
               </View>
               <Text style={styles.detailRowArrow}>›</Text>
             </Pressable>
@@ -252,15 +262,9 @@ export const TripDetailMapScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.mapBg,
-  },
-  map: {
-    flex: 1,
-  },
+  root: { flex: 1, backgroundColor: '#F5F0E8' },
+  map: { flex: 1 },
 
-  // App bar
   appBar: {
     position: 'absolute',
     top: 0,
@@ -279,22 +283,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  appBarLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 4,
-  },
-  backBtn: {
-    padding: 8,
-    marginLeft: -8,
-    borderRadius: 999,
-  },
-  backIcon: {
-    fontSize: 22,
-    color: COLORS.secondary,
-    fontWeight: '400',
-  },
+  appBarLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 4 },
+  backBtn: { padding: 8, marginLeft: -8, borderRadius: 999 },
+  backIcon: { fontSize: 22, color: COLORS.secondary },
   appBarTitle: {
     fontSize: 17,
     fontWeight: '600',
@@ -303,16 +294,9 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 4,
   },
-  moreBtn: {
-    padding: 8,
-    borderRadius: 999,
-  },
-  moreIcon: {
-    fontSize: 22,
-    color: COLORS.secondary,
-  },
+  moreBtn: { padding: 8, borderRadius: 999 },
+  moreIcon: { fontSize: 22, color: COLORS.secondary },
 
-  // Map pins
   pinCircle: {
     width: 28,
     height: 28,
@@ -337,31 +321,15 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
-  pinNumber: {
-    color: COLORS.white,
-    fontSize: 11,
-    fontWeight: '700',
-  },
+  pinNumber: { color: COLORS.white, fontSize: 11, fontWeight: '700' },
 
-  // Bottom sheet
   sheetBackground: {
     backgroundColor: 'rgba(255,255,255,0.97)',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  sheetHandle: {
-    backgroundColor: '#cbd5e1',
-    width: 48,
-  },
-  sheetContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
-  },
+  sheetHandle: { backgroundColor: '#cbd5e1', width: 48 },
+  statsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 12 },
   statChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -373,16 +341,9 @@ const styles = StyleSheet.create({
     borderColor: `${COLORS.outlineVariant}50`,
     borderRadius: 12,
   },
-  statChipIcon: {
-    fontSize: 14,
-  },
-  statChipText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.secondary,
-  },
+  statChipIcon: { fontSize: 14 },
+  statChipText: { fontSize: 13, fontWeight: '500', color: COLORS.secondary },
 
-  // Place cards
   placeCardsList: {
     paddingHorizontal: 20,
     paddingBottom: 12,
@@ -403,40 +364,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  placeCardActive: {
-    borderWidth: 2,
-    borderColor: COLORS.primaryAlt,
-  },
+  placeCardActive: { borderWidth: 2, borderColor: COLORS.primaryAlt },
   placeCardImage: {
     width: '100%',
     height: 96,
     backgroundColor: COLORS.surfaceContainerHigh,
   },
-  placeCardBody: {
-    padding: 10,
-  },
-  placeCardName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.onSurface,
-    lineHeight: 18,
-  },
-  placeCardNote: {
-    fontSize: 11,
-    color: `${COLORS.secondary}B3`,
-    marginTop: 2,
-  },
-  placeCardTime: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.primaryAlt,
-    marginTop: 6,
-  },
-  placeCardTimeDim: {
-    color: `${COLORS.secondary}80`,
-  },
+  placeCardBody: { padding: 10 },
+  placeCardName: { fontSize: 13, fontWeight: '600', color: COLORS.onSurface, lineHeight: 18 },
+  placeCardNote: { fontSize: 11, color: `${COLORS.secondary}B3`, marginTop: 2 },
+  placeCardTime: { fontSize: 10, fontWeight: '600', color: COLORS.primaryAlt, marginTop: 6 },
+  placeCardTimeDim: { color: `${COLORS.secondary}80` },
 
-  // Detail list
   detailList: {
     marginHorizontal: 20,
     marginTop: 4,
@@ -460,27 +399,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  detailBadgeNum: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.primaryAlt,
-  },
-  detailRowBody: {
-    flex: 1,
-  },
-  detailRowTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.onSurface,
-  },
-  detailRowSub: {
-    fontSize: 12,
-    color: COLORS.secondary,
-    marginTop: 2,
-  },
-  detailRowArrow: {
-    fontSize: 20,
-    color: COLORS.outlineVariant,
-    fontWeight: '300',
-  },
+  detailBadgeNum: { fontSize: 12, fontWeight: '700', color: COLORS.primaryAlt },
+  detailRowBody: { flex: 1 },
+  detailRowTitle: { fontSize: 14, fontWeight: '600', color: COLORS.onSurface },
+  detailRowSub: { fontSize: 12, color: COLORS.secondary, marginTop: 2 },
+  detailRowArrow: { fontSize: 20, color: COLORS.outlineVariant, fontWeight: '300' },
 });

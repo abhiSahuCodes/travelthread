@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   FlatList,
   Pressable,
@@ -8,7 +7,6 @@ import {
   Text,
   TextInput,
   View,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapLibreGL from '@maplibre/maplibre-react-native';
@@ -16,10 +14,9 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useAuthStore } from '../../store/authStore';
 import { useTripsStore } from '../../store/tripsStore';
 
-// Free OpenFreeMap tile style (no API key required)
+// Free tile style — no API key needed
 const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
-// ─── Colour tokens (matching Stitch design) ──────────────────────────────────
 const COLORS = {
   primary: '#630ed4',
   primaryAlt: '#7C3AED',
@@ -33,11 +30,9 @@ const COLORS = {
   secondaryContainer: '#d0e1fb',
   outline: '#7b7487',
   outlineVariant: '#ccc3d8',
-  mapBg: '#E8EDF5',
   white: '#ffffff',
 };
 
-// ─── Mock trip data (replaced with real data once API is wired) ───────────────
 const MOCK_TRIPS = [
   {
     id: '1',
@@ -86,8 +81,6 @@ const MOCK_TRIPS = [
 ];
 
 const YEARS = ['All', '2024', '2023', '2022'];
-
-// ─── Bottom-sheet snap points ─────────────────────────────────────────────────
 const SNAP_POINTS = ['30%', '55%'];
 
 export const WorldMapScreen = ({ navigation }) => {
@@ -99,78 +92,31 @@ export const WorldMapScreen = ({ navigation }) => {
   const [searchText, setSearchText] = useState('');
   const [isMapReady, setIsMapReady] = useState(false);
 
-  const bottomSheetRef = useRef(null);
   const cameraRef = useRef(null);
+  const bottomSheetRef = useRef(null);
 
-  // Seed mock trips into store if empty
-  useEffect(() => {
-    if (trips.length === 0) {
-      setTrips(MOCK_TRIPS);
-    }
+  React.useEffect(() => {
+    if (trips.length === 0) setTrips(MOCK_TRIPS);
   }, []);
 
-  // Filter trips by year
   const filteredTrips = useMemo(() => {
     const source = trips.length > 0 ? trips : MOCK_TRIPS;
     if (selectedYear === 'All') return source;
-    return source.filter(t => t.year === selectedYear);
+    return source.filter((t) => t.year === selectedYear);
   }, [trips, selectedYear]);
 
-  const handleTripPress = useCallback((trip) => {
-    navigation.navigate('TripDetailMap', { trip });
-  }, [navigation]);
+  const handleTripPress = useCallback(
+    (trip) => navigation.navigate('TripDetailMap', { trip }),
+    [navigation]
+  );
 
   const handlePinPress = useCallback((trip) => {
-    // Fly camera to pin
     cameraRef.current?.flyTo([trip.longitude, trip.latitude], 800);
   }, []);
 
-  // ─── Render each trip card in the bottom sheet horizontal list ─────────────
-  const renderTripCard = useCallback(({ item }) => (
-    <Pressable
-      style={({ pressed }) => [styles.tripCard, pressed && styles.tripCardPressed]}
-      onPress={() => handleTripPress(item)}
-    >
-      <View style={styles.tripCardImageWrapper}>
-        <Animated.Image
-          source={{ uri: item.coverImage }}
-          style={styles.tripCardImage}
-          resizeMode="cover"
-        />
-        <View style={styles.tripCardGradient} />
-        <View style={styles.tripCardInfo}>
-          <Text style={styles.tripCardName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.tripCardMeta}>
-            {item.countryFlag} {item.country} · {item.year}
-          </Text>
-        </View>
-      </View>
-    </Pressable>
-  ), [handleTripPress]);
-
-  // ─── Map pin annotations ──────────────────────────────────────────────────
-  const renderMapPins = () =>
-    filteredTrips.map((trip) => (
-      <MapLibreGL.PointAnnotation
-        key={trip.id}
-        id={`pin-${trip.id}`}
-        coordinate={[trip.longitude, trip.latitude]}
-        onSelected={() => handlePinPress(trip)}
-      >
-        <Pressable
-          onPress={() => handlePinPress(trip)}
-          style={styles.pinContainer}
-        >
-          <View style={styles.pinBadge}>
-            <Text style={styles.pinText}>{trip.placesCount ?? '•'}</Text>
-          </View>
-        </Pressable>
-      </MapLibreGL.PointAnnotation>
-    ));
-
   return (
     <View style={styles.root}>
-      {/* ── Full-screen map ── */}
+      {/* ── Full-screen MapLibre map ── */}
       <MapLibreGL.MapView
         style={styles.map}
         styleURL={MAP_STYLE_URL}
@@ -185,10 +131,25 @@ export const WorldMapScreen = ({ navigation }) => {
           centerCoordinate={[15, 25]}
           animationDuration={0}
         />
-        {isMapReady && renderMapPins()}
+
+        {isMapReady &&
+          filteredTrips.map((trip) => (
+            <MapLibreGL.PointAnnotation
+              key={trip.id}
+              id={`pin-${trip.id}`}
+              coordinate={[trip.longitude, trip.latitude]}
+              onSelected={() => handlePinPress(trip)}
+            >
+              <Pressable onPress={() => handlePinPress(trip)}>
+                <View style={styles.pinBadge}>
+                  <Text style={styles.pinText}>{trip.placesCount ?? '•'}</Text>
+                </View>
+              </Pressable>
+            </MapLibreGL.PointAnnotation>
+          ))}
       </MapLibreGL.MapView>
 
-      {/* ── Top header row: logo + avatar ── */}
+      {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
         <Text style={styles.logoText}>TravelThread</Text>
         <View style={styles.avatarRing}>
@@ -200,9 +161,8 @@ export const WorldMapScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* ── Frosted search + year filters overlay ── */}
+      {/* ── Search + year filters ── */}
       <View style={[styles.overlayControls, { top: insets.top + 68 }]}>
-        {/* Search bar */}
         <View style={styles.searchBar}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
@@ -212,10 +172,8 @@ export const WorldMapScreen = ({ navigation }) => {
             value={searchText}
             onChangeText={setSearchText}
           />
-          <Text style={styles.filterIcon}>⚙</Text>
         </View>
 
-        {/* Year filter chips */}
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -224,10 +182,7 @@ export const WorldMapScreen = ({ navigation }) => {
           contentContainerStyle={styles.yearFilters}
           renderItem={({ item: year }) => (
             <Pressable
-              style={[
-                styles.yearChip,
-                selectedYear === year && styles.yearChipActive,
-              ]}
+              style={[styles.yearChip, selectedYear === year && styles.yearChipActive]}
               onPress={() => setSelectedYear(year)}
             >
               <Text
@@ -263,7 +218,10 @@ export const WorldMapScreen = ({ navigation }) => {
           {filteredTrips.map((trip) => (
             <Pressable
               key={trip.id}
-              style={({ pressed }) => [styles.tripCard, pressed && styles.tripCardPressed]}
+              style={({ pressed }) => [
+                styles.tripCard,
+                pressed && styles.tripCardPressed,
+              ]}
               onPress={() => handleTripPress(trip)}
             >
               <Animated.Image
@@ -271,9 +229,10 @@ export const WorldMapScreen = ({ navigation }) => {
                 style={styles.tripCardImage}
                 resizeMode="cover"
               />
-              <View style={styles.tripCardGradient} />
               <View style={styles.tripCardInfo}>
-                <Text style={styles.tripCardName} numberOfLines={1}>{trip.name}</Text>
+                <Text style={styles.tripCardName} numberOfLines={1}>
+                  {trip.name}
+                </Text>
                 <Text style={styles.tripCardMeta}>
                   {trip.countryFlag} {trip.country} · {trip.year}
                 </Text>
@@ -281,7 +240,6 @@ export const WorldMapScreen = ({ navigation }) => {
             </Pressable>
           ))}
 
-          {/* Add new trip card */}
           <Pressable
             style={({ pressed }) => [styles.addTripCard, pressed && { opacity: 0.7 }]}
             onPress={() => navigation.navigate('Log')}
@@ -298,15 +256,9 @@ export const WorldMapScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.mapBg,
-  },
-  map: {
-    flex: 1,
-  },
+  root: { flex: 1, backgroundColor: '#E8EDF5' },
+  map: { flex: 1 },
 
-  // Header
   header: {
     position: 'absolute',
     top: 0,
@@ -324,6 +276,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.primary,
     letterSpacing: -0.4,
+    textShadowColor: 'rgba(255,255,255,0.9)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
   },
   avatarRing: {
     width: 40,
@@ -339,18 +294,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  avatarPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
+  avatarPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
 
-  // Overlay controls (search + year filters)
   overlayControls: {
     position: 'absolute',
     left: 0,
@@ -374,26 +320,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(241,245,249,0.8)',
   },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: COLORS.onSurface,
-    padding: 0,
-  },
-  filterIcon: {
-    fontSize: 16,
-    marginLeft: 8,
-    color: COLORS.outline,
-  },
-  yearFilters: {
-    paddingBottom: 4,
-    gap: 8,
-    flexDirection: 'row',
-  },
+  searchIcon: { fontSize: 16, marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: COLORS.onSurface, padding: 0 },
+  yearFilters: { paddingBottom: 4, gap: 8, flexDirection: 'row' },
   yearChip: {
     paddingHorizontal: 20,
     paddingVertical: 8,
@@ -402,25 +331,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  yearChipActive: {
-    backgroundColor: COLORS.primaryAlt,
-    borderColor: COLORS.primaryAlt,
-  },
-  yearChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.onSurfaceVariant,
-    letterSpacing: 0.1,
-  },
-  yearChipTextActive: {
-    color: COLORS.white,
-  },
+  yearChipActive: { backgroundColor: COLORS.primaryAlt, borderColor: COLORS.primaryAlt },
+  yearChipText: { fontSize: 12, fontWeight: '600', color: COLORS.onSurfaceVariant },
+  yearChipTextActive: { color: COLORS.white },
 
-  // Map pins
-  pinContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   pinBadge: {
     width: 32,
     height: 32,
@@ -436,27 +350,15 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  pinText: {
-    color: COLORS.white,
-    fontSize: 11,
-    fontWeight: '700',
-  },
+  pinText: { color: COLORS.white, fontSize: 11, fontWeight: '700' },
 
-  // Bottom sheet
   sheetBackground: {
     backgroundColor: COLORS.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  sheetHandle: {
-    backgroundColor: '#e2e8f0',
-    width: 40,
-  },
-  sheetHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 12,
-  },
+  sheetHandle: { backgroundColor: '#e2e8f0', width: 40 },
+  sheetHeader: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 },
   sheetTitle: {
     fontSize: 11,
     fontWeight: '700',
@@ -471,8 +373,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-
-  // Trip cards
   tripCard: {
     width: 180,
     height: 120,
@@ -485,26 +385,8 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  tripCardPressed: {
-    transform: [{ scale: 0.97 }],
-    opacity: 0.9,
-  },
-  tripCardImageWrapper: {
-    flex: 1,
-  },
-  tripCardImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-  },
-  tripCardGradient: {
-    ...StyleSheet.absoluteFillObject,
-    background: 'transparent',
-    backgroundColor: 'transparent',
-    // Simulate gradient with a solid bottom fade overlay
-    // Real LinearGradient not imported to keep deps lean here
-    // The dark overlay gives text readability
-  },
+  tripCardPressed: { transform: [{ scale: 0.97 }], opacity: 0.9 },
+  tripCardImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   tripCardInfo: {
     position: 'absolute',
     bottom: 0,
@@ -512,22 +394,15 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 10,
     paddingTop: 32,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.48)',
   },
-  tripCardName: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 18,
-  },
+  tripCardName: { color: COLORS.white, fontSize: 14, fontWeight: '700', lineHeight: 18 },
   tripCardMeta: {
     color: 'rgba(255,255,255,0.85)',
     fontSize: 10,
     fontWeight: '500',
     marginTop: 1,
   },
-
-  // Add trip card
   addTripCard: {
     width: 180,
     height: 120,
@@ -548,15 +423,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  addTripPlus: {
-    fontSize: 24,
-    color: COLORS.primaryAlt,
-    fontWeight: '400',
-    lineHeight: 28,
-  },
-  addTripLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.primaryAlt,
-  },
+  addTripPlus: { fontSize: 24, color: COLORS.primaryAlt, fontWeight: '400', lineHeight: 28 },
+  addTripLabel: { fontSize: 12, fontWeight: '600', color: COLORS.primaryAlt },
 });
