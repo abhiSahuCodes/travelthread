@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+model User {
+  id               String    @id @default(uuid())
+  email            String    @unique
+  name             String
+  homeCountry      String
+  passwordHash     String?
+  googleId         String?   @unique
+  profilePicture   String?
+  emailVerified    DateTime?
+  currencyPref     String    @default("USD")
+  distancePref     String    @default("km")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  refreshTokens    RefreshToken[]
+  verificationTks  VerificationToken[]
+}
+
+model RefreshToken {
+  id           String   @id @default(uuid())
+  tokenHash    String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+model VerificationToken {
+  id           String   @id @default(uuid())
+  tokenHash    String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String   
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+model Trip {
+  id              String   @id
+  userId          String
+  name            String
+  destinations    String
+  coverPhotoUrl   String?
+  startDate       String
+  endDate         String?
+  tags            String
+  introNote       String?
+  isArchived      Boolean  @default(false)
+  placeCount      Int      @default(0)
+  centroidLat     Float?
+  centroidLng     Float?
+  createdAt       String
+  updatedAt       String
+}
+
+model Place {
+  id              String   @id
+  tripId          String
+  userId          String
+  name            String
+  address         String?
+  latitude        Float
+  longitude       Float
+  visitedAt       String
+  loggedAt        String
+  notes           String?
+  spendAmount     Float?
+  spendCurrency   String?
+  category        String   @default("Other")
+  customFields    String   @default("{}")
+  visitOrder      Int
+  createdAt       String
+  updatedAt       String
+}
+
+model PlacePhoto {
+  id              String   @id
+  placeId         String
+  cloudinaryId    String?
+  remoteUrl       String?
+  thumbnailUrl    String?
+  localUri        String?
+  displayOrder    Int
+  capturedAt      String?
+  createdAt       String
+}
+
+model PlaceVoiceNote {
+  id              String   @id
+  placeId         String
+  cloudinaryId    String?
+  remoteUrl       String?
+  localUri        String?
+  durationSec     Int?
+  displayOrder    Int      @default(0)
+  createdAt       String
+}
+
+model CustomFieldDefinition {
+  id              String   @id
+  userId          String
+  name            String
+  fieldType       String
+  options         String   @default("[]")
+  defaultValue    String?
+  displayOrder    Int      @default(0)
+  createdAt       String
+}
