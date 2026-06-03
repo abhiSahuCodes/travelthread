@@ -5,11 +5,13 @@ import { AuthStack } from './AuthStack';
 import { TabNavigator } from './TabNavigator';
 import { LogModal } from './LogModal';
 import { useAuthStore } from '../store/authStore';
+import { useSyncOnReconnect } from '../sync/useSyncOnReconnect';
 
 const Stack = createNativeStackNavigator();
 
 export const RootNavigator = () => {
   const { isAuthenticated, setUser } = useAuthStore();
+  useSyncOnReconnect();
   
   useEffect(() => {
     const checkToken = async () => {
